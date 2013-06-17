@@ -1,8 +1,11 @@
+#!/usr/bin/env python
+
 import functools
 import collections
+import warnings
 
-class Proxy:
-    special_names = {
+class Proxy(type):
+    __special_names__ = {
         '__abs__', '__add__', '__and__', '__call__', '__cmp__', '__coerce__',
         '__contains__', '__delitem__', '__delslice__', '__div__', '__divmod__',
         '__eq__', '__float__', '__floordiv__', '__ge__', '__getitem__', '__getslice__',
@@ -14,13 +17,13 @@ class Proxy:
         '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__', '__setitem__',
         '__setslice__', '__sub__', '__truediv__', '__xor__', '__next__'
     }
-    imethods = {
+    __imethods__ = {
         '__iadd__', '__iand__', '__idiv__', '__idivmod__',
         '__ifloordiv__', '__ilshift__', '__imod__', '__imul__',
         '__invert__', '__ior__', '__ipow__', '__irshift__',
         '__isub__', '__itruediv__', '__ixor__'
     }
-    other_magic = {
+    __other_magic__ = {
         '__int__',
         '__long__',
         '__float__',
@@ -39,9 +42,10 @@ class Proxy:
         '__dir__',
         '__sizeof__'
     }
-    overridden = special_names.union(imethods.union(other_magic))
+    __overridden__ = __special_names__.union(__imethods__).union(__other_magic__)
     @staticmethod
-    def imethod_wrapper(method):
+    def __imethod_wrapper____(method):
+        '''makes a wrapper around __i<something>__ methods, such as __iadd__ to act on __subject__'''
         @functools.wraps(method)
         def wrapper(self,*args,**kwargs):
             tmp = self.__subject__
@@ -50,13 +54,28 @@ class Proxy:
             return self
         return wrapper
     @staticmethod
-    def method_wrapper(method):
+    def __method_wrapper__(method):
+        '''makes a wrapper around methods and cast the result to a proxytype if possible'''
         @functools.wraps(method)
         def wrapper(self,*args,**kwargs):
             res = method(self.__subject__,*args,**kwargs)
-            return Proxy(type(res),'Proxy<{t}>'.format(t=type(res).__name__))(res)
+            try:
+                return Proxy(type(res),'Proxy<{t}>'.format(t=type(res).__name__))(res)
+            except TypeError: #if the result's type isn't subclassable, i.e. types.FunctionType would raise a TypeException
+                return res
         return wrapper
+
+    @staticmethod
+    def usable_base_type(Type):
+        try:
+            type('',(Type,),{})
+            return True
+        except TypeError:
+            return False
     def __new__(cls,parentType,classname=None): #So that Proxy emulates a function
+        '''parentType is the type you wish to proxy, and classname is the name that appears for the class, <class 'classname'>'''
+        if not cls.usable_base_type(parentType):
+            raise TypeError("type '{Type}' is not an acceptable base type".format(Type=parentType.__name__))
         if classname is None:
             classname = 'Proxy<{name}>'.format(name=parentType.__name__)
         class newType(parentType):
@@ -65,21 +84,20 @@ class Proxy:
             def __getattribute__(self,name):
                 if name == '__subject__':
                     return super().__getattribute__('__subject__')
-                if name not in cls.overridden:
+                if name not in cls.__overridden__:
                     return self.__subject__.__getattribute__(name)
                 return super().__getattribute__(name)
-        for name,prop in ((k,v) for k,v in parentType.__dict__.items() if k != '__doc__'):
-            if name in cls.special_names:
-##            if isinstance(getattr(parentType,name),collections.Callable):
-                setattr(newType,name,cls.method_wrapper(prop))
-        for name in cls.imethods: #parentType may not implement all of them
+        for name,prop in ((k,v) for k,v in parentType.__dict__.items() if k != '__doc__'): #because magic methods are implemented as staticmethods
+            if name in cls.__special_names__:
+                setattr(newType,name,cls.__method_wrapper__(prop))
+        for name in cls.__imethods__: #parentType may not implement all of them
             if hasattr(parentType,name):
-                setattr(newType,name,cls.imethod_wrapper(parentType.__dict__[name]))
+                setattr(newType,name,cls.__imethod_wrapper____(parentType.__dict__[name]))
             else:
                 non_i_name = name[:2]+name[3:]
                 if hasattr(parentType,non_i_name):
-                    setattr(newType,name,cls.imethod_wrapper(getattr(parentType,non_i_name)))
-        for name in cls.other_magic:
+                    setattr(newType,name,cls.__imethod_wrapper____(getattr(parentType,non_i_name)))
+        for name in cls.__other_magic__:
             if hasattr(parentType,name):
                 parent_item = getattr(parentType,name)
                 if isinstance(parent_item,collections.Callable):
