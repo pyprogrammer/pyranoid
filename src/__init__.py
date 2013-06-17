@@ -16,3 +16,6 @@ without Proxy:
 >>> a += 3
 >>> print(a,b) #prints (6,3)
 """
+
+from proxy import *
+from objectproxy import ObjectProxy
