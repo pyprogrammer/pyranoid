@@ -39,6 +39,7 @@ class Proxy:
         '__dir__',
         '__sizeof__'
     }
+    overridden = special_names.union(imethods.union(other_magic))
     @staticmethod
     def imethod_wrapper(method):
         @functools.wraps(method)
@@ -53,24 +54,23 @@ class Proxy:
         @functools.wraps(method)
         def wrapper(self,*args,**kwargs):
             res = method(self.__subject__,*args,**kwargs)
-            try:
-                res = Proxy(type(res),'Proxy<{t}>'.format(t=type(res).__name__))(res)
-            except Exception as e:
-                print(e)
-            return res
+            return Proxy(type(res),'Proxy<{t}>'.format(t=type(res).__name__))(res)
         return wrapper
-    def __new__(cls,parentType,classname=None):
+    def __new__(cls,parentType,classname=None): #So that Proxy emulates a function
         if classname is None:
             classname = 'Proxy<{name}>'.format(name=parentType.__name__)
         class newType(parentType):
             def __init__(self,*args,**kwargs):
                 self.__subject__ = parentType(*args,**kwargs)
-            def __repr__(self):
-                if hasattr(self.__subject__,'__repr__'):
-                    return repr(self.__subject__)
-                return object.__repr__(self.__subject__)
+            def __getattribute__(self,name):
+                if name == '__subject__':
+                    return super().__getattribute__('__subject__')
+                if name not in cls.overridden:
+                    return self.__subject__.__getattribute__(name)
+                return super().__getattribute__(name)
         for name,prop in ((k,v) for k,v in parentType.__dict__.items() if k != '__doc__'):
             if name in cls.special_names:
+##            if isinstance(getattr(parentType,name),collections.Callable):
                 setattr(newType,name,cls.method_wrapper(prop))
         for name in cls.imethods: #parentType may not implement all of them
             if hasattr(parentType,name):
@@ -82,10 +82,8 @@ class Proxy:
         for name in cls.other_magic:
             if hasattr(parentType,name):
                 parent_item = getattr(parentType,name)
-                print(parent_item)
                 if isinstance(parent_item,collections.Callable):
-                    print(parent_item)
-                    setattr(newType,name,lambda self:parent_item(self.__subject__))
+                    setattr(newType,name,lambda self,*args,**kwargs:parent_item(self.__subject__,*args,**kwargs))
                 else:
                     setattr(newType,name,parent_item)
         newType.__name__ = classname
