@@ -2,7 +2,6 @@
 
 import functools
 import collections
-import warnings
 
 class Proxy(type):
     __special_names__ = {
@@ -81,12 +80,13 @@ class Proxy(type):
         class newType(parentType):
             def __init__(self,*args,**kwargs):
                 self.__subject__ = parentType(*args,**kwargs)
-            def __getattribute__(self,name):
-                if name == '__subject__':
-                    return super().__getattribute__('__subject__')
+            def setvalue(self,value):
+                self.__subject__ = value
+            def getvalue(self):
+                return self.__subject__
+            def __getattr__(self,name):
                 if name not in cls.__overridden__:
-                    return self.__subject__.__getattribute__(name)
-                return super().__getattribute__(name)
+                    return getattr(self.__subject__,name)
         for name,prop in ((k,v) for k,v in parentType.__dict__.items() if k != '__doc__'): #because magic methods are implemented as staticmethods
             if name in cls.__special_names__:
                 setattr(newType,name,cls.__method_wrapper__(prop))
