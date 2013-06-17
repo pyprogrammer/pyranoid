@@ -1,16 +1,15 @@
 import unittest
-import mutable
+from proxy import Proxy
 
 class TestMutable(unittest.TestCase):
     def setUp(self):
         self.testtypes = (
-            int, str, tuple, list, dict, set
+            int, str, tuple, list
             )
     def test_subclassing(self):
-        testitems = [mutable.Mutable(testtype) for
-                     testtype in self.testtypes]
-        for klass, testclass in testitems:
-            unittest.assertTrue(issubclass(testclass,klass))
+        for testtype in self.testtypes:
+            self.assertIsInstance(Proxy(testtype)(),testtype)
+        return True
 
 if __name__ == '__main__':
     unittest.main()
