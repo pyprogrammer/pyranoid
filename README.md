@@ -8,9 +8,9 @@ Example:
 ```
 import Pyranoid
 
-MutableInt = Pyranoid.mutable(int)
+IntProxy = Pyranoid.proxy(int)
 
-myint = MutableInt(3) #creates a new mutableint
+myint = IntProxy(3) #creates a new mutableint
 
 def f(x):
   x += 3
