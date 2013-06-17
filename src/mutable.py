@@ -1,4 +1,5 @@
 import functools
+import collections
 
 ##def Mutable(parentType,name):
 ##     
@@ -9,8 +10,8 @@ import functools
 ##    return type(name,(parentType,),{
 ##        })
 
-class Mutable:
-    __special_names = (
+class Proxy:
+    special_names = (
         '__abs__', '__add__', '__and__', '__call__', '__cmp__', '__coerce__',
         '__contains__', '__delitem__', '__delslice__', '__div__', '__divmod__',
         '__eq__', '__float__', '__floordiv__', '__ge__', '__getitem__', '__getslice__',
@@ -22,47 +23,48 @@ class Mutable:
         '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__', '__setitem__',
         '__setslice__', '__sub__', '__truediv__', '__xor__', '__next__'
     )
-    __imethods = ('__iadd__', '__iand__', '__idiv__', '__idivmod__',
+    imethods = ('__iadd__', '__iand__', '__idiv__', '__idivmod__',
                   '__ifloordiv__', '__ilshift__', '__imod__', '__imul__',
                   '__invert__', '__ior__', '__ipow__', '__irshift__',
                   '__isub__', '__itruediv__', '__ixor__')
     @staticmethod
-    def __imethod_wrapper(self,method):
+    def imethod_wrapper(self,method):
         @functools.wraps(method)
         def wrapper(*args,**kwargs):
+            print(method)
             method(*args,**kwargs)
             return self
         return wrapper
-    @classmethod
-    def __call__(cls,parentType,name):
-        print('called')
-        def __init__(self,*args,**kwargs):
-            self.__proxy_item = parentType(*args,**kwargs)
-            for name in cls.__special_names:
-                try:
-                    self.__set__(name, getattr(self,name))
-                except AttributeError:
-                    pass
-            for name in cls.__imethods:
-                try:
-                    self.__set__(name, getattr(self,name))
-                except AttributeError:
-                    pass
-        def get_proxy(self):
-            return self.__proxy_item
-        def __getattr__(self,name):
-            if not hasattr(parentType,name):
-                raise AttributeError(name)
-            if name in cls.__special_names:
-                return getattr(self.__proxy_item,name)
-            if name in cls.__imethods:
-                method = getattr(self.__proxy_item,name)
-                return cls.__imethod_wrapper(self,method)
-            raise AttributeError(name)
-        return type(name,(object,),{'__init__':__init__,'get_proxy':get_proxy,'__getattr__':__getattr__})
+    @staticmethod
+    def method_wrapper(method):
+        @functools.wraps(method)
+        def wrapper(*args,**kwargs):
+            res = method(*args,**kwargs)
+            print('Called Wrapper!')
+            try:
+                res = Proxy(type(res),'Mutable<{t}>'.format(t=type(res).__name__))(res)
+            except Exception as e:
+                print(e)
+            return res
+        return wrapper
+    def __new__(cls,parentType,classname):
+        class newType(parentType):
+            def __init__(self,*args,**kwargs):
+                self.__proxy_item = parentType(*args,**kwargs)
+                self.__dict__ = {'__proxy_item':self.__proxy_item}
+                for name,prop in parentType.__dict__.items():
+                    if name in cls.special_names:
+                        if isinstance(prop,collections.Callable):
+                            setattr(self,name,cls.method_wrapper(functools.partial(prop,self.value())))
+                        else:
+                            setattr(self,name,prop)
+            def value(self):
+                return self.__dict__['__proxy_item']
+        newType.__name__ = classname
+        return newType
         
 
 if __name__ == '__main__':
-    MutableInt = Mutable.__call__(int,'MutableInt')
-    mint = MutableInt(3)
-    mint2 = MutableInt(5)
+    TupleProxy = Proxy(tuple,'TupleProxy')
+    t = TupleProxy((1,2,3))
+    t += (1,2,3)
