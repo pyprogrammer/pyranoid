@@ -18,4 +18,4 @@ without Proxy:
 """
 
 from proxy import *
-from objectproxy import ObjectProxy
+

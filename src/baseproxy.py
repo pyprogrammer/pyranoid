@@ -62,8 +62,13 @@ class Proxy(type):
         def wrapper(self,other):
             prev = self.__subject__
             res = method(self.__subject__,other)
+            if res is NotImplemented: #means python has checked for __i<method>__ as well as __<method>__
+                rmethodname = method.__name__[:2]+'r'+method.__name__[2:]
+                if hasattr(other,rmethodname):
+                    res = getattr(other,rmethodname)(self.__subject__)
             if not isinstance(res,type(prev)):
                 return Proxy(type(res))(res)
+            self.__subject__ = res
             return self
         return wrapper
     @staticmethod
@@ -93,11 +98,11 @@ class Proxy(type):
             res = method(self.__subject__,other)
             if res is NotImplemented:
                 #this is rather hackish - if it was an __r method, it gets changed to a normal magic method, otherwise it becomes an __r method.
-                rmethod_name = method.__name__[:2]+'r'+method.__name__[2:] if method.__name__[2] == 'r' else method.__name__[:2]+method.__name__[3:]
-                if hasattr(other,rmethod_name):
-                    res = getattr(other,rmethod_name)(self.__subject__)
+                method_name = method.__name__[:2]+'r'+method.__name__[2:] if method.__name__[2] == 'r' else method.__name__[:2]+method.__name__[3:]
+                if hasattr(other,method_name):
+                    res = getattr(other,method_name)(self.__subject__)
                 else:
-                    return res
+                    pass
             try:
                 return Proxy(type(res))(res)
             except TypeError as e:
@@ -138,9 +143,6 @@ class Proxy(type):
             def __getattr__(self,name):
                 if name not in cls.__overridden__:
                     return getattr(self.__subject__,name)
-        for name,prop in ((k,v) for k,v in parentType.__dict__.items() if k != '__doc__'): #because magic methods are implemented as staticmethods
-            if name in cls.__special_names__:
-                setattr(newType,name,cls.__method_wrapper__(prop))
         for name in cls.__imethods__: #parentType may not implement all of them
             if hasattr(parentType,name):
                 setattr(newType,name,cls.__imethod_wrapper__(getattr(parentType,name)))
@@ -148,14 +150,8 @@ class Proxy(type):
                 non_i_name = name[:2]+name[3:]
                 if hasattr(parentType,non_i_name):
                     setattr(newType,name,cls.__imethod_wrapper__(getattr(parentType,non_i_name)))
-        for name in cls.__other_magic__:
-            if hasattr(parentType,name):
-                parent_item = getattr(parentType,name)
-                if isinstance(parent_item,collections.Callable):
-                    setattr(newType,name,cls.__method_wrapper__(parent_item))#lambda self,*args,**kwargs:parent_item(self.__subject__,*args,**kwargs)
-                else:
-                    setattr(newType,name,parent_item)
-        decoratormap = {cls.__magic__:cls.__magic_wrapper__,cls.__representational__:cls.__thin_wrapper__,cls.__comparison__:cls.__comparison_wrapper__}
+        decoratormap = {cls.__magic__:cls.__magic_wrapper__,cls.__representational__:cls.__thin_wrapper__,cls.__comparison__:cls.__comparison_wrapper__,
+                        cls.__other_magic__:cls.__thin_wrapper__}
         for methodset,wrapper in decoratormap.items():
             for name in methodset:
                 if hasattr(parentType,name):
@@ -163,12 +159,6 @@ class Proxy(type):
         newType.__name__ = classname
         cls.__class_cache__[parentType] = newType
         return newType
-
-#common Proxy classes
-IntProxy = Proxy(int)
-FloatProxy = Proxy(float)
-StrProxy = Proxy(str)
-TupleProxy = Proxy(tuple)
     
 if __name__ == '__main__':
     IntProxy = Proxy(int)

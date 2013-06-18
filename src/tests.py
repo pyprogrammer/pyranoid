@@ -1,8 +1,7 @@
 import unittest
 import random
 import operator
-from proxy import Proxy
-from objectproxy import ObjectProxy
+import baseproxy
 
 class TestProxy(unittest.TestCase):
     def setUp(self):
@@ -11,10 +10,10 @@ class TestProxy(unittest.TestCase):
             )
     def test_subclassing(self):
         for testtype in self.testtypes:
-            self.assertIsInstance(Proxy(testtype)(),testtype)
+            self.assertIsInstance(baseproxy.Proxy(testtype)(),testtype)
         return True
     def test_int(self):
-        IntProxy = Proxy(int)
+        IntProxy = baseproxy.Proxy(int)
         tests = (
             operator.iadd,
             operator.iand,
@@ -29,10 +28,16 @@ class TestProxy(unittest.TestCase):
             operator.ixor
             )
         for test in tests:
-            for i in range(100):
-                a = b = IntProxy(random.randint(1,1000))
-                test(a,random.randint(1,1000))
-                self.assertEqual(a,b)
+            for i in range(1000):
+                rand = random.randint(1,1000)
+                rand2 = random.randint(1,1000)
+                a = b = IntProxy(rand)
+                c = rand
+                test(a,rand2)
+                test(c,rand2)
+                self.assertEqual(a,b,c)
+    def test_str(self):
+        pass
 
 
 if __name__ == '__main__':
