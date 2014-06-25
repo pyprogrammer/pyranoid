@@ -4,6 +4,8 @@ from baseproxy import BaseProxy
 from collections import defaultdict
 import functools
 
+__all__ = ['AspectProxy']
+
 class AspectProxy(BaseProxy):
     def __new__(self, parentType):
         result = super().__new__(self,parentType)

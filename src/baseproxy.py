@@ -4,7 +4,7 @@ import functools
 import collections
 
 
-
+__all__ = ['Proxied','BaseProxy']
 
 class Proxied:
     '''Just a marker to determine if something is a proxy or not'''

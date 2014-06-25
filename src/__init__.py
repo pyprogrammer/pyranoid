@@ -17,5 +17,6 @@ without Proxy:
 >>> print(a,b) #prints (6,3)
 """
 
-from proxy import *
+from baseproxy import *
+from aspectproxy import *
 
