@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-__all__ = ['Proxy']
-
 import functools
 import collections
 
@@ -11,7 +9,7 @@ import collections
 class Proxied:
     '''Just a marker to determine if something is a proxy or not'''
 
-class Proxy(type):
+class BaseProxy(type):
     __special_names__ = frozenset(('__getslice__', '__reduce__', '__lt__', '__cmp__', '__reduce_ex__',
                          '__contains__', '__abs__', '__pos__', '__call__', '__len__', '__ne__',
                          '__getitem__', '__next__', '__iter__', '__delslice__', '__rfloorfiv__',
@@ -50,11 +48,10 @@ class Proxy(type):
         '__sizeof__'
     ))
     __representational__ = frozenset((
-        '__str__',
+        '__str__', 
         '__repr__',
     ))
-    __overridden__ = __special_names__.union(__imethods__).union(__other_magic__).union(__representational__).union(__magic__)
-    __class_cache__ = {}
+    __overridden__ = __special_names__ | __imethods__ | __other_magic__ | __representational__ | __magic__
     @staticmethod
     def __imethod_wrapper__(method):
         '''makes a wrapper around __i<something>__ methods, such as __iadd__ to act on __subject__'''
@@ -123,26 +120,34 @@ class Proxy(type):
             return True
         except TypeError:
             return False
+
+    @functools.lru_cache(maxsize=-1)
     def __new__(cls,parentType): #So that Proxy emulates a function
         '''parentType is the type you wish to proxy, and classname is the name that appears for the class, <class 'classname'>'''
-        if parentType in cls.__class_cache__: #proxyclasses need to be cached so that Proxy(int) == Proxy(int)
-            return cls.__class_cache__[parentType]
+##        if parentType in cls.__class_cache__: #proxyclasses need to be cached so that Proxy(int) == Proxy(int)
+##            return cls.__class_cache__[parentType]
         if not cls.usable_base_type(parentType):
             raise TypeError("type '{Type}' is not an acceptable base type".format(Type=parentType.__name__))
-        classname = 'Proxy<{name}>'.format(name=parentType.__name__)
-        class newType(parentType,Proxied):
-            def __init__(self,*args,**kwargs):
-                self.__subject__ = parentType(*args,**kwargs)
-                self.__parentType__ = parentType
-            def setvalue(self,value):
-                if not isinstance(value,parentType):
-                    value = parentType(value)
-                self.__subject__ = value
-            def getvalue(self):
-                return self.__subject__
-            def __getattr__(self,name):
-                if name not in cls.__overridden__:
-                    return getattr(self.__subject__,name)
+        classname = '<class Proxy<{name}> >'.format(name=parentType.__name__)
+        def __init__(self,*args,**kwargs):
+            self.__subject__ = parentType(*args,**kwargs)
+            self.__parentType__ = parentType
+        def setvalue(self,value):
+            if not isinstance(value,parentType):
+                value = parentType(value)
+            self.__subject__ = value
+        def getvalue(self):
+            return self.__subject__
+        def __getattr__(self,name):
+            if name not in cls.__overridden__:
+                return getattr(self.__subject__,name)
+
+        newType = type(classname, (parentType,), {
+            '__init__':__init__,
+            'setvalue':setvalue,
+            'getvalue':getvalue,
+            '__getattr__':__getattr__
+            })
         for name in cls.__imethods__: #parentType may not implement all of them
             if hasattr(parentType,name):
                 setattr(newType,name,cls.__imethod_wrapper__(getattr(parentType,name)))
@@ -156,13 +161,12 @@ class Proxy(type):
             for name in methodset:
                 if hasattr(parentType,name):
                     setattr(newType,name,wrapper(getattr(parentType,name)))
-        newType.__name__ = classname
-        cls.__class_cache__[parentType] = newType
+        newType.__name__ = classname 
         return newType
     
 if __name__ == '__main__':
-    IntProxy = Proxy(int)
-    FloatProxy = Proxy(float)
+    IntProxy = BaseProxy(int)
+    FloatProxy = BaseProxy(float)
     i = IntProxy(10)
     f = FloatProxy(0.5)
     
