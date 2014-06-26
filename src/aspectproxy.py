@@ -6,7 +6,7 @@ import functools
 
 __all__ = ['AspectProxy']
 
-class AspectProxy(BaseProxy):
+class AspectProxy(Proxy):
     def __new__(self, parentType):
         result = super().__new__(self,parentType)
         result._aspectbefore = defaultdict(list)
