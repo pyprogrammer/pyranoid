@@ -6,6 +6,17 @@ import collections
 
 __all__ = ['Proxied','Proxy']
 
+def _new_cache(__new__):
+    cache = {}
+    @functools.wraps(__new__)
+    def wrapper(cls, parentType, bases=(), namespace=None):
+        key = (parentType, bases, tuple((namespace or {}).items()))
+        if key in cache:
+            return cache[key]
+        r = cache[key] = __new__(cls, parentType, bases, namespace)
+        return r
+    return wrapper
+
 class Proxied:
     '''Just a marker to determine if something is a proxy or not'''
 
@@ -113,33 +124,39 @@ class Proxy(type):
         except TypeError:
             return False
 
-    @functools.lru_cache(maxsize=-1)
-    def __new__(cls,parentType): #So that Proxy emulates a function
+    @_new_cache
+    def __new__(cls,parentType,bases=(),namespace=None): #So that Proxy emulates a function
         '''parentType is the type you wish to proxy, and classname is the name that appears for the class, <class 'classname'>'''
-##        if parentType in cls.__class_cache__: #proxyclasses need to be cached so that Proxy(int) == Proxy(int)
-##            return cls.__class_cache__[parentType]
-        if not cls.usable_base_type(parentType):
-            raise TypeError("type '{Type}' is not an acceptable base type".format(Type=parentType.__name__))
-        classname = '<class Proxy<{name}> >'.format(name=parentType.__name__)
+        if isinstance(parentType,str):
+            #used as a metaclass/3-arg type
+            classname = parentType
+            parentType = bases[0] if bases else object
+        else:
+            #used as a function
+            if not cls.usable_base_type(parentType):
+                raise TypeError("type '{Type}' is not an acceptable base type".format(Type=parentType.__name__))
+            classname = '<class Proxy<{name}> >'.format(name=parentType.__name__)
+            bases = (parentType,)
+            namespace = {}
         def __init__(self,*args,**kwargs):
             self.__subject__ = parentType(*args,**kwargs)
             self.__parentType__ = parentType
         def setvalue(self,value):
             if not isinstance(value,parentType):
-                value = parentType(value)
+                raise TypeError('Type must be of {parentType}'.format(parentType=str(parentType)))
             self.__subject__ = value
         def getvalue(self):
             return self.__subject__
         def __getattr__(self,name):
             if name not in cls.__overridden__:
                 return getattr(self.__subject__,name)
-
-        newType = type(classname, (parentType,), {
+        namespace.update({
             '__init__':__init__,
             'setvalue':setvalue,
             'getvalue':getvalue,
             '__getattr__':__getattr__
             })
+        newType = type(classname, bases, namespace)
         for name in cls.__imethods__: #parentType may not implement all of them
             if hasattr(parentType,name):
                 setattr(newType,name,cls.__imethod_wrapper__(getattr(parentType,name)))
@@ -161,4 +178,8 @@ if __name__ == '__main__':
     FloatProxy = Proxy(float)
     i = IntProxy(10)
     f = FloatProxy(0.5)
+    class Test(metaclass=Proxy):
+        def hello(self):
+            return 'hello world'
+    print(Test().hello())
     

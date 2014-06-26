@@ -7,8 +7,8 @@ import functools
 __all__ = ['AspectProxy']
 
 class AspectProxy(Proxy):
-    def __new__(self, parentType):
-        result = super().__new__(self,parentType)
+    def __new__(self, parentType, bases=(), namespace = None):
+        result = super().__new__(self,parentType, bases, namespace)
         result._aspectbefore = defaultdict(list)
         result._aspectafter = defaultdict(list)
         getattribute = result.__getattribute__
