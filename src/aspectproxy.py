@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from baseproxy import BaseProxy
+from proxy import Proxy
 from collections import defaultdict
 import functools
 

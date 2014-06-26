@@ -1,7 +1,7 @@
 import unittest
 import random
 import operator
-import baseproxy
+import proxy
 
 class TestProxy(unittest.TestCase):
     def setUp(self):
@@ -13,7 +13,7 @@ class TestProxy(unittest.TestCase):
             self.assertIsInstance(baseproxy.Proxy(testtype)(),testtype)
         return True
     def test_int(self):
-        IntProxy = baseproxy.Proxy(int)
+        IntProxy = proxy.Proxy(int)
         tests = (
             operator.iadd,
             operator.iand,
